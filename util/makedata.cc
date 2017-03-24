@@ -8,7 +8,7 @@
 #include "opencv/highgui.h"
 
 using namespace std;
-
+#define BATCHSIZE 64
 int readyLabel(string labelfn, unordered_map<string, int> &labelmap);
 int makeBatchs(string imglistfn, unordered_map<string, int> &labelmap, int dims[4], string tgtfolder);
 int test();
@@ -25,11 +25,11 @@ int test()
     string labelfn = "../ILSVR2012.label.txt";
     // string imglistfn = "/mnt/disk_4T/imgnet/train.txt";
     string imglistfn = "/mnt/disk_4T/imgnet/val.txt";
-    string tgtfolder = "/mnt/disk_4T/imgnet/batches";
+    string tgtfolder = "/mnt/disk_4T/lbin_work/batches";
 
     unordered_map<string, int> labelmap;
     readyLabel(labelfn, labelmap);
-    int dims[4] = { 32, 3, 224, 224 };
+    int dims[4] = { BATCHSIZE, 3, 224, 224 };
     makeBatchs(imglistfn, labelmap, dims, tgtfolder);
     return 0;
 }
@@ -74,7 +74,7 @@ int makeBatchs(string imglistfn, unordered_map<string, int> &labelmap, int dims[
     int nowbi         = 0;
     int nowbnum       = 0;
     // string imgFolder  = "/mnt/disk_4T/imgnet/train/";
-    string imgFolder = "/mnt/disk_4T/imgnet/val/";
+    string imgFolder = "/mnt/disk_4T/val/";
     while (getline(myfile, line))
     {
         //! TRAIN
@@ -112,8 +112,7 @@ int makeBatchs(string imglistfn, unordered_map<string, int> &labelmap, int dims[
                 pfNow[oft + imgsize * 2] = pftmpdata[oft * 3 + 2] - 128;
             }
         }
-        pfLabels[nowbi] = float(atoi(labelpre.c_str()));
-        std::cout << "label: " << pfLabels[nowbi] << std::endl;
+        pfLabels[nowbi] = atoi(labelpre.c_str());
         nowbi++;
         if (nowbi % bsz == 0)
         {
@@ -126,7 +125,7 @@ int makeBatchs(string imglistfn, unordered_map<string, int> &labelmap, int dims[
             cout << dstbatchfn << endl;
             ofstream mybin(dstbatchfn, ios::out | ios::binary);
             mybin.write((char *)dims, 4 * sizeof(int));
-            // for (int ii = 0; ii < 10; ii++) printf("%.3f,", pfOneBatch[ii]);
+            for (int ii = 0; ii < 10; ii++) printf("%.3f,", pfOneBatch[ii]);
             printf("\n");
             mybin.write((char *)pfOneBatch, totalsize * sizeof(float));
             mybin.close();

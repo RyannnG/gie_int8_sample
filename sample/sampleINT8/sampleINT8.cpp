@@ -11,8 +11,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
-#include <unordered_map>
-
+#include <unordered_map> 
 #include "NvCaffeParser.h"
 #include "NvInfer.h"
 
@@ -68,7 +67,7 @@ std::string locateFile(const std::string &input)
 void caffeToGIEModel(const std::string &deployFile, // name for caffe prototxt
                      const std::string &modelFile,  // name for model
                      const std::vector<std::string> &outputs, // network outputs
-                     unsigned int maxBatchSize, // batch size - NB must be at
+                     unsigned int maxBatchSize,               // batch size - NB must be at
                                                 // least as large as the batch
                                                 // we want to run with)
                      IInt8Calibrator *calibrator,
@@ -86,7 +85,7 @@ void caffeToGIEModel(const std::string &deployFile, // name for caffe prototxt
     parser->parse(locateFile(deployFile).c_str(), locateFile(modelFile).c_str(),
                   *network, DataType::kFLOAT);
 
-    std::cout << "caffeToGIEModel 1!" << std::endl;
+    //std::cout << "caffeToGIEModel 1!" << std::endl;
     // specify which tensors are outputs
     for (auto &s : outputs)
         network->markOutput(*blobNameToTensor->find(s.c_str()));
@@ -97,15 +96,15 @@ void caffeToGIEModel(const std::string &deployFile, // name for caffe prototxt
     builder->setAverageFindIterations(1);
     builder->setMinFindIterations(1);
     builder->setDebugSync(true);
-    std::cout << "caffeToGIEModel 2!" << std::endl;
+    //std::cout << "caffeToGIEModel 2!" << std::endl;
 
     builder->setInt8Mode(calibrator != nullptr);
     builder->setInt8Calibrator(calibrator);
 
-    std::cout << "caffeToGIEModel 3!" << std::endl;
+    //std::cout << "caffeToGIEModel 3!" << std::endl;
 
     ICudaEngine *engine = builder->buildCudaEngine(*network);
-    std::cout << "caffeToGIEModel 4!" << std::endl;
+    //std::cout << "caffeToGIEModel 4!" << std::endl;
     assert(engine);
 
     // we don't need the network any more, and we can destroy the parser
@@ -412,11 +411,9 @@ std::pair<float, float> scoreModel(int batchSize,
     std::stringstream gieModelStream;
     std::cout << gNetworkName << std::endl;
     std::string strNetName(gNetworkName);
-    // std::cout << "scoreModel 1!" << std::endl;
     caffeToGIEModel("deploy.prototxt", strNetName + ".caffemodel",
                     std::vector<std::string>{ OUTPUT_BLOB_NAME }, batchSize,
                     calibrator, gieModelStream);
-    // std::cout << "scoreModel 2!" << std::endl;
     // Create engine and deserialize model.
     IRuntime *infer = createInferRuntime(gLogger);
     gieModelStream.seekg(0, gieModelStream.beg);
@@ -440,11 +437,12 @@ std::pair<float, float> scoreModel(int batchSize,
         top1 += calculateScore(&prob[0], stream.getLabels(), batchSize, outputSize, 1);
         top5 += calculateScore(&prob[0], stream.getLabels(), batchSize, outputSize, 5);
 
-        std::cout << (!quiet && stream.getBatchesRead() % 10 == 0 ? "." : "")
-                  << (!quiet && stream.getBatchesRead() % 800 == 0 ? "\n" : "")
-                  << std::flush;
+        //std::cout << (!quiet && stream.getBatchesRead() % 10 == 0 ? "." : "")
+        //          << (!quiet && stream.getBatchesRead() % 800 == 0 ? "\n" : "")
+        //          << std::flush;
     }
     int imagesRead = stream.getBatchesRead() * batchSize;
+    std::cout<< "imagesRead: "<<imagesRead<<std::endl;
     float t1 = float(top1) / float(imagesRead), t5 = float(top5) / float(imagesRead);
 
     if (!quiet)
@@ -478,7 +476,7 @@ CalibrationParameters gCalibrationTable[] = { { "alexnet", 0.6, 7.0 },
 static const int gCalibrationTableSize =
 sizeof(gCalibrationTable) / sizeof(CalibrationParameters);
 
-static const int CAL_BATCH_SIZE        = 32;
+static const int CAL_BATCH_SIZE        = 64;
 static const int FIRST_CAL_BATCH       = 0,
                  NB_CAL_BATCHES        = 10; // calibrate over images 0-500
 static const int FIRST_CAL_SCORE_BATCH = 100,
@@ -554,8 +552,8 @@ int main(int argc, char **argv)
     }
     gNetworkName = argv[1];
 
-    int batchSize = 32, firstScoreBatch = 10,
-        nbScoreBatches = 40; // by default we score over 40K images starting at
+    int batchSize = 64, firstScoreBatch = 10,
+        nbScoreBatches = 700; // by default we score over 40K images starting at
                              // 10000, so we don't score those used to search
                              // calibration
     bool search = false;
