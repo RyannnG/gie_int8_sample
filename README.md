@@ -1,13 +1,13 @@
 # gie_int8_sample
 
 # Benchmark
-TitanX (Pascal) val_dataset 44800 images [batch_size=64]
+TitanX (Pascal) val_dataset 49920 images [batch_size=64]
 
 ## FP32
 ### GoogLeNet:
 ```
-Top1: 0.676406, Top5: 0.8825
-Processing 44800 images averaged 0.678648 ms/image and 43.4334 ms/batch.
+Top1: 0.676863, Top5: 0.882933
+Processing 49920 images averaged 0.395122 ms/image and 25.2878 ms/batch.
 ```
 ### VGGNet
 ```
@@ -24,8 +24,8 @@ Processing 49920 images averaged 0.155812 ms/image and 9.97194 ms/batch.
 ## INT8
 ### GoogLeNet:
 ```
-Top1: 0.649732, Top5: 0.86875
-Processing 44800 images averaged 0.243285 ms/image and 15.5702 ms/batch.
+Top1: 0.650641, Top5: 0.869251
+Processing 49920 images averaged 0.147287 ms/image and 9.42637 ms/batch.
 ```
 ### VGGNet:
 ```
