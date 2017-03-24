@@ -469,6 +469,7 @@ struct CalibrationParameters
 CalibrationParameters gCalibrationTable[] = { { "alexnet", 0.6, 7.0 },
                                               { "vgg19", 0.5, 5 },
                                               { "googlenet", 1, 8.0 },
+                                              { "googlenet_half", 0.4, 8.0 },
                                               { "resnet-50", 0.61, 2.0 },
                                               { "resnet-101", 0.51, 2.5 },
                                               { "resnet-152", 0.4, 5.0 } };
