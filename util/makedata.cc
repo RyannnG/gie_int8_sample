@@ -125,8 +125,8 @@ int makeBatchs(string imglistfn, unordered_map<string, int> &labelmap, int dims[
             cout << dstbatchfn << endl;
             ofstream mybin(dstbatchfn, ios::out | ios::binary);
             mybin.write((char *)dims, 4 * sizeof(int));
-            for (int ii = 0; ii < 10; ii++) printf("%.3f,", pfOneBatch[ii]);
-            printf("\n");
+            // for (int ii = 0; ii < 10; ii++) printf("%.3f,", pfOneBatch[ii]);
+            // printf("\n");
             mybin.write((char *)pfOneBatch, totalsize * sizeof(float));
             mybin.close();
 

@@ -11,7 +11,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
-#include <unordered_map> 
+#include <unordered_map>
 #include "NvCaffeParser.h"
 #include "NvInfer.h"
 
@@ -173,14 +173,14 @@ int calculateScore(float *batchProb, float *labels, int batchSize, int outputSiz
     for (int i = 0; i < batchSize; i++)
     {
         float *prob = batchProb + outputSize * i, correct = prob[(int)labels[i]];
-        printf("%d:%d, %f; ", i, (int)labels[i], correct);
+        //printf("%d:%d, %f; ", i, (int)labels[i], correct);
 
         int better = 0;
         for (int j = 0; j < outputSize; j++)
             if (prob[j] >= correct) better++;
         if (better <= threshold) success++;
     }
-    printf("\n");
+    //printf("\n");
     return success;
 }
 
@@ -290,9 +290,9 @@ class BatchStream
         ;
         float *pfdata = getFileBatch();
         float *pflbl  = getFileLabels();
-        for (int i = 0; i < dims.n; i++)
-            printf("%.3f,%.1f;", pfdata[i], pflbl[i]);
-        printf("\n");
+        // for (int i = 0; i < dims.n; i++)
+        //     printf("%.3f,%.1f;", pfdata[i], pflbl[i]);
+        // printf("\n");
         assert(readInputCount == size_t(dims.n * mImageSize) &&
                readLabelCount == size_t(dims.n));
 
@@ -552,8 +552,8 @@ int main(int argc, char **argv)
     }
     gNetworkName = argv[1];
 
-    int batchSize = 64, firstScoreBatch = 10,
-        nbScoreBatches = 700; // by default we score over 40K images starting at
+    int batchSize = 64, firstScoreBatch = 0,
+        nbScoreBatches = 780; // by default we score over 40K images starting at
                              // 10000, so we don't score those used to search
                              // calibration
     bool search = false;
