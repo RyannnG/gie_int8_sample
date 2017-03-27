@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unordered_map>
+
 #include "NvCaffeParser.h"
 #include "NvInfer.h"
 
@@ -32,10 +33,6 @@ using namespace nvcaffeparser1;
 const char *INPUT_BLOB_NAME  = "data";
 const char *OUTPUT_BLOB_NAME = "prob";
 const char *gNetworkName;
-// const int gBatchSize = 10;
-// const int gStandardC = 3;
-// const int gStandardH = 224;
-// const int gStandardW = 224;
 
 // Logger for GIE info/warning/errors
 class Logger : public ILogger
@@ -67,7 +64,7 @@ std::string locateFile(const std::string &input)
 void caffeToGIEModel(const std::string &deployFile, // name for caffe prototxt
                      const std::string &modelFile,  // name for model
                      const std::vector<std::string> &outputs, // network outputs
-                     unsigned int maxBatchSize,               // batch size - NB must be at
+                     unsigned int maxBatchSize, // batch size - NB must be at
                                                 // least as large as the batch
                                                 // we want to run with)
                      IInt8Calibrator *calibrator,
@@ -80,31 +77,25 @@ void caffeToGIEModel(const std::string &deployFile, // name for caffe prototxt
     // parse the caffe model to populate the network, then set the outputs
     INetworkDefinition *network = builder->createNetwork();
     ICaffeParser *parser        = createCaffeParser();
-    std::cout << locateFile(deployFile).c_str() << std::endl;
+
     const IBlobNameToTensor *blobNameToTensor =
     parser->parse(locateFile(deployFile).c_str(), locateFile(modelFile).c_str(),
                   *network, DataType::kFLOAT);
 
-    //std::cout << "caffeToGIEModel 1!" << std::endl;
     // specify which tensors are outputs
     for (auto &s : outputs)
         network->markOutput(*blobNameToTensor->find(s.c_str()));
 
     // Build the engine
     builder->setMaxBatchSize(maxBatchSize);
-    builder->setMaxWorkspaceSize(1 << 28);
+    builder->setMaxWorkspaceSize(1 << 20);
     builder->setAverageFindIterations(1);
     builder->setMinFindIterations(1);
     builder->setDebugSync(true);
-    //std::cout << "caffeToGIEModel 2!" << std::endl;
-
     builder->setInt8Mode(calibrator != nullptr);
     builder->setInt8Calibrator(calibrator);
 
-    //std::cout << "caffeToGIEModel 3!" << std::endl;
-
     ICudaEngine *engine = builder->buildCudaEngine(*network);
-    //std::cout << "caffeToGIEModel 4!" << std::endl;
     assert(engine);
 
     // we don't need the network any more, and we can destroy the parser
@@ -173,14 +164,12 @@ int calculateScore(float *batchProb, float *labels, int batchSize, int outputSiz
     for (int i = 0; i < batchSize; i++)
     {
         float *prob = batchProb + outputSize * i, correct = prob[(int)labels[i]];
-        //printf("%d:%d, %f; ", i, (int)labels[i], correct);
 
         int better = 0;
         for (int j = 0; j < outputSize; j++)
             if (prob[j] >= correct) better++;
         if (better <= threshold) success++;
     }
-    //printf("\n");
     return success;
 }
 
@@ -190,17 +179,10 @@ class BatchStream
     BatchStream(int batchSize, int maxBatches)
     : mBatchSize(batchSize), mMaxBatches(maxBatches)
     {
-        std::string strfn = locateFile(std::string("batches/batch0"));
-        std::cout << "BatchStream " + strfn + "\n";
-        FILE *file = fopen(strfn.c_str(), "rb");
+        FILE *file =
+        fopen(locateFile(std::string("batches/batch0")).c_str(), "rb");
         fread(&mDims, sizeof(int), 4, file);
         fclose(file);
-        std::cout << mDims.n << ", " << mDims.c << ", " << mDims.h << ", "
-                  << mDims.w << std::endl;
-        //		mDims.c = gStandardC;
-        //		mDims.h = gStandardH;
-        //		mDims.w = gStandardW;
-        //		mDims.n = gBatchSize;
         mImageSize = mDims.c * mDims.h * mDims.w;
         mBatch.resize(mBatchSize * mImageSize, 0);
         mLabels.resize(mBatchSize, 0);
@@ -211,7 +193,6 @@ class BatchStream
 
     void reset(int firstBatch)
     {
-        std::cout << "BatchStream reset\n";
         mBatchCount   = 0;
         mFileCount    = 0;
         mFileBatchPos = mDims.n;
@@ -220,15 +201,11 @@ class BatchStream
 
     bool next()
     {
-        //    std::cout << "BatchStream next\n";
         if (mBatchCount == mMaxBatches) return false;
 
         for (int csize = 1, batchPos = 0; batchPos < mBatchSize;
              batchPos += csize, mFileBatchPos += csize)
         {
-            //      std::cout << "csize:" << csize << ", batchPos:" << batchPos
-            //      << ", mBatchSize:" << mBatchSize << ", mFileBatchPos:" <<
-            //      mFileBatchPos << std::endl;
             assert(mFileBatchPos > 0 && mFileBatchPos <= mDims.n);
             if (mFileBatchPos == mDims.n && !update()) return false;
 
@@ -245,7 +222,6 @@ class BatchStream
 
     void skip(int skipCount)
     {
-        std::cout << "BatchStream skip\n";
         if (mBatchSize >= mDims.n && mBatchSize % mDims.n == 0 &&
             mFileBatchPos == mDims.n)
         {
@@ -270,12 +246,8 @@ class BatchStream
 
     bool update()
     {
-        // batch format: n, c, h, w, data0(n*c*h*w), label0(n), data1, label1,
-        // ...
-        //    std::cout << "BatchStream update\n";
         std::string inputFileName =
         locateFile(std::string("batches/batch") + std::to_string(mFileCount++));
-        //    std::cout << "BatchStream update:" + inputFileName + "\n";
         FILE *file = fopen(inputFileName.c_str(), "rb");
         if (!file) return false;
 
@@ -288,11 +260,6 @@ class BatchStream
         fread(getFileBatch(), sizeof(float), dims.n * mImageSize, file);
         size_t readLabelCount = fread(getFileLabels(), sizeof(float), dims.n, file);
         ;
-        float *pfdata = getFileBatch();
-        float *pflbl  = getFileLabels();
-        // for (int i = 0; i < dims.n; i++)
-        //     printf("%.3f,%.1f;", pfdata[i], pflbl[i]);
-        // printf("\n");
         assert(readInputCount == size_t(dims.n * mImageSize) &&
                readLabelCount == size_t(dims.n));
 
@@ -323,8 +290,6 @@ class Int8Calibrator : public IInt8Calibrator
     {
         Dims4 dims  = mStream.getDims();
         mInputCount = mStream.getBatchSize() * dims.c * dims.h * dims.w;
-        std::cout << dims.c << "  " << dims.h << "  " << dims.w << "  "
-                  << dims.n << std::endl;
         CHECK(cudaMalloc(&mDeviceInput, mInputCount * sizeof(float)));
         reset(cutoff, quantile);
     }
@@ -337,7 +302,6 @@ class Int8Calibrator : public IInt8Calibrator
 
     bool getBatch(void *bindings[], const char *names[], int nbBindings) override
     {
-        std::cout << "Int8Calibrator getBatch\n";
         if (!mStream.next()) return false;
 
         CHECK(cudaMemcpy(mDeviceInput, mStream.getBatch(),
@@ -349,7 +313,6 @@ class Int8Calibrator : public IInt8Calibrator
 
     const void *readCalibrationCache(size_t &length) override
     {
-        std::cout << "Int8Calibrator readCalibrationCache\n";
         mCalibrationCache.clear();
         std::ifstream input(locateFile("CalibrationTable"), std::ios::binary);
         input >> std::noskipws;
@@ -363,21 +326,18 @@ class Int8Calibrator : public IInt8Calibrator
 
     void writeCalibrationCache(const void *cache, size_t length) override
     {
-        std::cout << "Int8Calibrator writeCalibrationCache\n";
         std::ofstream output(locateFile("CalibrationTable"), std::ios::binary);
         output.write(reinterpret_cast<const char *>(cache), length);
     }
 
     const void *readHistogramCache(size_t &length) override
     {
-        std::cout << "Int8Calibrator readHistogramCache\n";
         length = mHistogramCache.size();
         return length ? &mHistogramCache[0] : nullptr;
     }
 
     void writeHistogramCache(const void *cache, size_t length) override
     {
-        std::cout << "Int8Calibrator writeHistogramCache\n";
         mHistogramCache.clear();
         std::copy_n(reinterpret_cast<const char *>(cache), length,
                     std::back_inserter(mHistogramCache));
@@ -385,7 +345,6 @@ class Int8Calibrator : public IInt8Calibrator
 
     void reset(float cutoff, float quantile)
     {
-        std::cout << "Int8Calibrator reset\n";
         mCutoff   = cutoff;
         mQuantile = quantile;
         mStream.reset(mFirstBatch);
@@ -409,11 +368,12 @@ std::pair<float, float> scoreModel(int batchSize,
                                    bool quiet = false)
 {
     std::stringstream gieModelStream;
-    std::cout << gNetworkName << std::endl;
-    std::string strNetName(gNetworkName);
-    caffeToGIEModel("deploy.prototxt", strNetName + ".caffemodel",
+
+    caffeToGIEModel("deploy.prototxt",
+                    std::string(gNetworkName) + ".caffemodel",
                     std::vector<std::string>{ OUTPUT_BLOB_NAME }, batchSize,
                     calibrator, gieModelStream);
+
     // Create engine and deserialize model.
     IRuntime *infer = createInferRuntime(gLogger);
     gieModelStream.seekg(0, gieModelStream.beg);
@@ -437,12 +397,11 @@ std::pair<float, float> scoreModel(int batchSize,
         top1 += calculateScore(&prob[0], stream.getLabels(), batchSize, outputSize, 1);
         top5 += calculateScore(&prob[0], stream.getLabels(), batchSize, outputSize, 5);
 
-        //std::cout << (!quiet && stream.getBatchesRead() % 10 == 0 ? "." : "")
-        //          << (!quiet && stream.getBatchesRead() % 800 == 0 ? "\n" : "")
-        //          << std::flush;
+        std::cout << (!quiet && stream.getBatchesRead() % 10 == 0 ? "." : "")
+                  << (!quiet && stream.getBatchesRead() % 800 == 0 ? "\n" : "")
+                  << std::flush;
     }
     int imagesRead = stream.getBatchesRead() * batchSize;
-    std::cout<< "imagesRead: "<<imagesRead<<std::endl;
     float t1 = float(top1) / float(imagesRead), t5 = float(top5) / float(imagesRead);
 
     if (!quiet)
@@ -469,7 +428,6 @@ struct CalibrationParameters
 CalibrationParameters gCalibrationTable[] = { { "alexnet", 0.6, 7.0 },
                                               { "vgg19", 0.5, 5 },
                                               { "googlenet", 1, 8.0 },
-                                              { "googlenet_half", 0.4, 8.0 },
                                               { "resnet-50", 0.61, 2.0 },
                                               { "resnet-101", 0.51, 2.5 },
                                               { "resnet-152", 0.4, 5.0 } };
@@ -477,7 +435,7 @@ CalibrationParameters gCalibrationTable[] = { { "alexnet", 0.6, 7.0 },
 static const int gCalibrationTableSize =
 sizeof(gCalibrationTable) / sizeof(CalibrationParameters);
 
-static const int CAL_BATCH_SIZE        = 64;
+static const int CAL_BATCH_SIZE        = 50;
 static const int FIRST_CAL_BATCH       = 0,
                  NB_CAL_BATCHES        = 10; // calibrate over images 0-500
 static const int FIRST_CAL_SCORE_BATCH = 100,
@@ -553,10 +511,10 @@ int main(int argc, char **argv)
     }
     gNetworkName = argv[1];
 
-    int batchSize = 64, firstScoreBatch = 0,
-        nbScoreBatches = 780; // by default we score over 40K images starting at
-                             // 10000, so we don't score those used to search
-                             // calibration
+    int batchSize = 100, firstScoreBatch = 100,
+        nbScoreBatches = 400; // by default we score over 40K images starting at
+                              // 10000, so we don't score those used to search
+                              // calibration
     bool search = false;
 
     for (int i = 2; i < argc; i++)
@@ -610,10 +568,9 @@ int main(int argc, char **argv)
         BatchStream calibrationStream(CAL_BATCH_SIZE, NB_CAL_BATCHES);
         Int8Calibrator calibrator(calibrationStream, FIRST_CAL_BATCH, cutoff,
                                   quantileFromIndex(quantileIndex));
-        std::cout << "after calibrator!---------------------" << std::endl;
         scoreModel(batchSize, firstScoreBatch, nbScoreBatches, &calibrator);
     }
-    if (1)
+
     {
         std::cout << "\nFP32 run:" << nbScoreBatches << " batches of size "
                   << batchSize << " starting at " << firstScoreBatch << std::endl;
